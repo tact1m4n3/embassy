@@ -13,21 +13,24 @@ impl<const N: usize> MultiWakerRegistration<N> {
         Self { wakers: Vec::new() }
     }
 
+    /// Get the number of registered wakers
+    pub fn len(&self) -> usize {
+        self.wakers.len()
+    }
+
     /// Register a waker. If the buffer is full the function returns it in the error
-    pub fn register<'a>(&mut self, w: &'a Waker) {
+    pub fn register<'a>(&mut self, w: &'a Waker) -> Result<(), &'a Waker> {
         // If we already have some waker that wakes the same task as `w`, do nothing.
         // This avoids cloning wakers, and avoids unnecessary mass-wakes.
         for w2 in &self.wakers {
             if w.will_wake(w2) {
-                return;
+                return Ok(());
             }
         }
 
         if self.wakers.is_full() {
-            // All waker slots were full. It's a bit inefficient, but we can wake everything.
-            // Any future that is still active will simply reregister.
-            // This won't happen a lot, so it's ok.
-            self.wake();
+            // return the error
+            return Err(w);
         }
 
         if self.wakers.push(w.clone()).is_err() {
@@ -35,6 +38,8 @@ impl<const N: usize> MultiWakerRegistration<N> {
             // (Either `wakers` wasn't full, or it was in which case `wake()` empied it)
             panic!("tried to push a waker to a zero-length MultiWakerRegistration")
         }
+
+        Ok(())
     }
 
     /// Wake all registered wakers. This clears the buffer
