@@ -14,6 +14,7 @@ impl<const N: usize> MultiWakerRegistration<N> {
     }
 
     /// Get the number of registered wakers
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.wakers.len()
     }
