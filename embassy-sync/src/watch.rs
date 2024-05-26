@@ -1,8 +1,7 @@
 use core::{
-    cell::Cell,
-    future::poll_fn,
+    cell::RefCell,
+    future::{poll_fn, Future},
     task::Poll,
-    future::Future,
 };
 
 use crate::{
@@ -10,64 +9,99 @@ use crate::{
     waitqueue::MultiWakerRegistration,
 };
 
-pub struct Watch<M: RawMutex, T: Clone, const N: usize> {
-    state: Mutex<M, Cell<State<T, N>>>,
+pub struct Watch<M: RawMutex, T: Clone, const R: usize> {
+    state: Mutex<M, RefCell<State<T, R>>>,
 }
 
-impl<M: RawMutex, T: Clone, const N: usize> Watch<M, T, N> {
+impl<M: RawMutex, T: Clone, const R: usize> Watch<M, T, R> {
     pub const fn new() -> Self {
         Self {
-            state: Mutex::new(Cell::new(State::Waiting {
+            state: Mutex::new(RefCell::new(State {
+                value: None,
+                version: Version::new(),
                 wakers: MultiWakerRegistration::new(),
+                receiver_count: 0,
             })),
         }
     }
 
-    pub fn set(&self, value: T) {
-        self.state.lock(|state| {
-            if let State::Waiting { mut wakers } = state.take() {
-                state.set(State::Ready {
-                    num_wakers: wakers.len(),
-                    value,
-                });
-                wakers.wake();
-            }
-        });
+    pub fn sender(&self) -> Sender<'_, M, T, R> {
+        Sender { watch: self }
     }
 
-    pub fn wait(&self) -> impl Future<Output = T> + '_ {
-        poll_fn(move |ctx| {
-            self.state.lock(|state| match state.take() {
-                State::Waiting { mut wakers } => {
-                    if wakers.register(ctx.waker()).is_err() {
-                        panic!("Maximum number of wakers reached");
-                    }
+    pub fn receiver(&self) -> Receiver<'_, M, T, R> {
+        self.state.lock(|s| {
+            let mut s = s.borrow_mut();
+            if s.receiver_count >= R {
+                panic!("too many receivers. you better increase the max number");
+            }
+            s.receiver_count += 1;
+            Receiver { watch: self, version: s.version }
+        })
+    }
+}
 
-                    state.set(State::Waiting { wakers });
-                    Poll::Pending
+pub struct Sender<'a, M: RawMutex, T: Clone, const R: usize> {
+    watch: &'a Watch<M, T, R>,
+}
+
+impl<M: RawMutex, T: Clone, const R: usize> Sender<'_, M, T, R> {
+    pub fn send(&self, value: T) {
+        self.watch.state.lock(|s| {
+            let mut s = s.borrow_mut();
+            s.value = Some((value, s.receiver_count));
+            s.version.update();
+            s.wakers.wake();
+        });
+    }
+}
+
+pub struct Receiver<'a, M: RawMutex, T: Clone, const R: usize> {
+    watch: &'a Watch<M, T, R>,
+    version: Version,
+}
+
+impl<M: RawMutex, T: Clone, const R: usize> Receiver<'_, M, T, R> {
+    pub fn wait(&mut self) -> impl Future<Output = T> + '_ {
+        poll_fn(|ctx| {
+            self.watch.state.lock(|s| {
+                let mut s = s.borrow_mut();
+
+                if self.version != s.version {
+                    if let Some((value, remaining)) = s.value.take() {
+                        if remaining > 0 {
+                            s.value = Some((value.clone(), remaining - 1));
+                        }
+                        self.version = s.version;
+                        return Poll::Ready(value)
+                    }
                 }
-                State::Ready { num_wakers, value } if num_wakers > 0 => {
-                    state.set(State::Ready {
-                        num_wakers: num_wakers - 1,
-                        value: value.clone(),
-                    });
-                    Poll::Ready(value)
-                }
-                State::Ready { value, .. } => Poll::Ready(value),
+
+                s.wakers.register(ctx.waker()).expect("should not have happened");
+                Poll::Pending
             })
         })
     }
 }
 
-enum State<T: Clone, const N: usize> {
-    Waiting { wakers: MultiWakerRegistration<N> },
-    Ready { num_wakers: usize, value: T },
+struct State<T: Clone, const R: usize> {
+    value: Option<(T, usize)>,
+    version: Version,
+    wakers: MultiWakerRegistration<R>,
+    receiver_count: usize,
 }
 
-impl<T: Clone, const N: usize> Default for State<T, N> {
-    fn default() -> Self {
-        Self::Waiting {
-            wakers: MultiWakerRegistration::new(),
-        }
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct Version {
+    value: u32,
+}
+
+impl Version {
+    pub const fn new() -> Self {
+        Self { value: 0 }
+    }
+
+    pub fn update(&mut self) {
+        self.value = self.value.wrapping_add(1);
     }
 }
