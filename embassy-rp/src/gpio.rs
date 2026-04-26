@@ -221,13 +221,13 @@ pub enum InterruptTrigger {
 
 pub(crate) unsafe fn init() {
     interrupt::IO_IRQ_BANK0.disable();
-    interrupt::IO_IRQ_BANK0.set_priority(interrupt::Priority::P3);
+    interrupt::IO_IRQ_BANK0.set_priority(interrupt::Priority::P0);
     interrupt::IO_IRQ_BANK0.enable();
 
     #[cfg(feature = "qspi-as-gpio")]
     {
         interrupt::IO_IRQ_QSPI.disable();
-        interrupt::IO_IRQ_QSPI.set_priority(interrupt::Priority::P3);
+        interrupt::IO_IRQ_QSPI.set_priority(interrupt::Priority::P0);
         interrupt::IO_IRQ_QSPI.enable();
     }
 }

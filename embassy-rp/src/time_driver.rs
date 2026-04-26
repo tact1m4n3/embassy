@@ -123,10 +123,12 @@ pub unsafe fn init() {
     });
     #[cfg(feature = "rp2040")]
     {
+        interrupt::TIMER_IRQ_0.set_priority(interrupt::Priority::P0);
         interrupt::TIMER_IRQ_0.enable();
     }
     #[cfg(feature = "_rp235x")]
     {
+        interrupt::TIMER0_IRQ_0.set_priority(interrupt::Priority::P0);
         interrupt::TIMER0_IRQ_0.enable();
     }
 }

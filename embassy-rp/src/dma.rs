@@ -37,7 +37,7 @@ impl<T: ChannelInstance> interrupt::typelevel::Handler<T::Interrupt> for Interru
 }
 
 pub(crate) unsafe fn init() {
-    interrupt::DMA_IRQ_0.set_priority(interrupt::Priority::P3);
+    interrupt::DMA_IRQ_0.set_priority(interrupt::Priority::P0);
 }
 
 /// DMA channel driver.

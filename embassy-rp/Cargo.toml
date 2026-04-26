@@ -144,8 +144,8 @@ imagedef-nonsecure-exe = []
 imagedef-none = []
 
 ## Configure the hal for use with the rp2040
-rp2040 = ["rp-pac/rp2040"]
-_rp235x = ["rp-pac/rp235x"]
+rp2040 = ["rp-pac/rp2040", "embassy-hal-internal/prio-bits-2"]
+_rp235x = ["rp-pac/rp235x", "embassy-hal-internal/prio-bits-4"]
 ## Configure the hal for use with the rp235xA
 rp235xa = ["_rp235x"]
 ## Configure the hal for use with the rp235xB
@@ -166,7 +166,8 @@ embassy-time-driver = { version = "0.2.2", path = "../embassy-time-driver", opti
 embassy-time-queue-utils = { version = "0.3.2", path = "../embassy-time-queue-utils", optional = true }
 embassy-time = { version = "0.5.1", path = "../embassy-time" }
 embassy-futures = { version = "0.1.2", path = "../embassy-futures" }
-embassy-hal-internal = { version = "0.5.0", path = "../embassy-hal-internal", features = ["cortex-m", "prio-bits-2"] }
+embassy-hal-internal = { version = "0.5.0", path = "../embassy-hal-internal", features = ["cortex-m"] }
+>>>>>>> ab110b286 (Various patches)
 embassy-embedded-hal = { version = "0.6.0", path = "../embassy-embedded-hal" }
 embassy-usb-driver = { version = "0.2.1", path = "../embassy-usb-driver" }
 embassy-executor = { version = "0.10.0", path = "../embassy-executor", optional = true }
